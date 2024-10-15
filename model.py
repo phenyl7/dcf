@@ -32,9 +32,7 @@ def create_financials_excel(ticker, save_folder):
 
     # Update the 'model' sheet with specific values
     model_sheet = wb['model']
-    model_sheet['A1'] = "last fcf "
-    model_sheet['B1'] = "last 4q fcf"
-    model_sheet['C1'] = "last 8q fcf "
+    model_sheet['C1'] = "fgr"
     model_sheet['D1'] = "wacc"
     model_sheet['E1'] = "tgr"
     model_sheet['F1'] = "npv of fcf"
@@ -54,7 +52,7 @@ def create_financials_excel(ticker, save_folder):
     wb.save(excel_file)
     wb.close()
 
-    print(f"Excel file '{excel_file}' created with populated financials and model sheets.")
+    print(f"Excel file '{excel_file}' created ")
 
 # Main execution
 ticker = input("Enter ticker symbol (e.g., 'aapl'): ")
