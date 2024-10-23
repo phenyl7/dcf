@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from openpyxl import Workbook
 from openpyxl.styles import numbers
+from openpyxl.utils import get_column_letter
 
 # Your API key
 api_key = "cbqZ2QHLPY7B5zq0SVrBDxtLcri82HCQ"
@@ -13,145 +14,91 @@ base_url = "https://financialmodelingprep.com/api/v3"
 # Folder to save the Excel file
 save_folder = "/Users/rr/fa"
 
-# Function to fetch financial statements
-def fetch_financial_statements(ticker):
-    endpoints = {
-        "income_statement": f"{base_url}/income-statement/{ticker}?apikey={api_key}",
-        "cash_flow": f"{base_url}/cash-flow-statement/{ticker}?apikey={api_key}"
-    }
+# Function to fetch the cash flow statement
+def fetch_cash_flow_statement(ticker):
+    endpoint = f"{base_url}/cash-flow-statement/{ticker}?apikey={api_key}"
 
-    data_frames = {}
-    
-    # Loop through the endpoints and store the data in pandas DataFrames
-    for statement, url in endpoints.items():
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            df = pd.DataFrame(data)
-            data_frames[statement] = df
-        else:
-            print(f"Failed to fetch {statement} data for {ticker}")
-            return None
+    response = requests.get(endpoint)
+    if response.status_code == 200:
+        data = response.json()
+        df = pd.DataFrame(data)
+        return df
+    else:
+        print(f"Failed to fetch cash flow data for {ticker}")
+        return None
 
-    return data_frames
-
-# Function to apply custom formatting for large numbers
+# Function to apply custom formatting for numbers
 def apply_custom_format(ws_model):
-    # Loop through all cells in the sheet
     for row in ws_model.iter_rows(min_row=1, max_row=ws_model.max_row, min_col=1, max_col=ws_model.max_column):
         for cell in row:
-            if isinstance(cell.value, (int, float)) and abs(cell.value) >= 1000000:
-                cell.number_format = '#,###,,'
+            if isinstance(cell.value, (int, float)):
+                cell.number_format = '#,##0'  # Format as thousands without decimals
 
-# Function to save the financial statements to an Excel file using openpyxl
-def save_to_excel(ticker, data_frames, income_start_row=5, cashflow_start_row=None):
-    # Create the full path for the Excel file
+def save_to_excel(ticker, cash_flow_df):
     file_name = os.path.join(save_folder, f"${ticker}.xlsx")
-    
-    # Create an openpyxl Workbook
     wb = Workbook()
-    
-    # Create the first sheet named "model"
     ws_model = wb.active
     ws_model.title = "model"
-    
-    # Create the second sheet named "main" (empty)
     ws_main = wb.create_sheet(title="main")
-    
-    # Get the income statement and cash flow statement as DataFrames
-    income_statement = data_frames['income_statement'].drop(columns=['symbol'], errors='ignore').T
-    cash_flow = data_frames['cash_flow'].drop(columns=['symbol'], errors='ignore').T
 
-    # Set the default starting row for the cash flow statement if not provided
-    if cashflow_start_row is None:
-        cashflow_start_row = income_start_row + len(income_statement) + 5  # Add 5 empty rows after the income statement
+    # Add rows to the "main" sheet
+    ws_main['B2'] = "price"
+    ws_main['B3'] = "shares"
+    ws_main['B4'] = "mc"
+    ws_main['B5'] = "cash"
+    ws_main['B6'] = "debt"
+    ws_main['B7'] = "ev"
+    ws_main['B9'] = "net cash"
+    ws_main['C9'] = "=C5-C6"
 
-    # Write the income statement to the specified start row
-    for r_idx, row in enumerate(income_statement.itertuples(), income_start_row):
-        for c_idx, value in enumerate(row, 1):
+    # Specify names to keep
+    names_to_keep = [
+        "date",
+        "calendarYear",
+        "netIncome",
+        "operatingCashFlow",
+        "capitalExpenditure",
+        "freeCashFlow",
+    ]
+
+    # Filter the DataFrame and drop the 'symbol' column if it exists
+    filtered_df = cash_flow_df[names_to_keep].copy()
+
+    # Convert numeric values to millions
+    numeric_columns = ['netIncome', 'operatingCashFlow', 'capitalExpenditure', 'freeCashFlow']
+    filtered_df[numeric_columns] = filtered_df[numeric_columns] / 1_000_000
+
+    # Transpose the filtered DataFrame
+    transposed_df = filtered_df.T
+
+    # Write the transposed data starting at row 5
+    for r_idx, (index, row) in enumerate(transposed_df.iterrows(), 5):
+        # Write row name in column A
+        ws_model.cell(row=r_idx, column=1, value=index)
+        
+        # Write row values starting from column B
+        for c_idx, value in enumerate(row, 2):
             ws_model.cell(row=r_idx, column=c_idx, value=value)
 
-    # Add empty rows
-    for _ in range(5):
-        ws_model.append([])  # Add 5 empty rows
-
-    # Write the cash flow statement to the specified start row
-    for r_idx, row in enumerate(cash_flow.itertuples(), cashflow_start_row):
-        for c_idx, value in enumerate(row, 1):
+    # Reverse the order of columns B through F while keeping column A intact
+    max_row = ws_model.max_row
+    for r_idx in range(5, max_row + 1):  # Start from row 5
+        values = []
+        # Collect values from columns B through F
+        for c_idx in range(2, 7):  # B=2, F=6
+            cell = ws_model.cell(row=r_idx, column=c_idx)
+            values.append(cell.value)
+        
+        # Write back the reversed values
+        for c_idx, value in enumerate(reversed(values), 2):
             ws_model.cell(row=r_idx, column=c_idx, value=value)
 
-    # Set the width of column A to 30
+    # Set column widths
     ws_model.column_dimensions['A'].width = 30
-
-    # Set the width of all other columns to 10
     for col in ws_model.iter_cols(min_col=2, max_col=ws_model.max_column):
         ws_model.column_dimensions[col[0].column_letter].width = 10
 
-    # Specify names to remove
-    names_to_remove = [
-        "reportedCurrency", 
-        "cik", 
-        "fillingDate", 
-        "acceptedDate", 
-        "link", 
-        "finalLink", 
-        "period", 
-        "grossProfitRatio", 
-        "ebitdaratio", 
-        "operatingIncomeRatio", 
-        "incomeBeforeTaxRatio", 
-        "netIncomeRatio", 
-        "sellingGeneralAndAdministrativeExpenses", 
-        "otherExpenses", 
-        "costAndExpenses", 
-        "interestIncome", 
-        "interestExpense", 
-        "depreciationAndAmortization", 
-        "ebitda", 
-        "epsdiluted", 
-        "weightedAverageShsOutDil",
-        "deferredIncomeTax",
-        "stockBasedCompensation",
-        "stockBasedCompensation",
-        "accountsReceivables",
-        "inventory",
-        "accountsPayables",
-        "otherWorkingCapital",
-        "otherNonCashItems",
-        "acquisitionsNet",
-        "purchasesOfInvestments",
-        "salesMaturitiesOfInvestments",
-        "otherInvestingActivites",
-        "debtRepayment",
-        "commonStockIssued",
-        "commonStockRepurchased",
-        "dividendsPaid",
-        "otherFinancingActivites",
-        "effectOfForexChangesOnCash",
-        "operatingCashFlow",
-        "capitalExpenditure", 
-        "changeInWorkingCapital"
-    ]
-
-    # Iterate through the rows and collect rows to delete based on column A
-    rows_to_delete = []
-    for row in ws_model.iter_rows(min_row=1, max_row=ws_model.max_row, min_col=1, max_col=1):
-        for cell in row:
-            if cell.value in names_to_remove:
-                rows_to_delete.append(cell.row)
-
-    # Delete rows in reverse order to maintain correct indexing
-    for row in sorted(rows_to_delete, reverse=True):
-        ws_model.delete_rows(row)
-
-    # Reverse the order of columns B:F while keeping column A intact
-    max_row = ws_model.max_row
-    for r_idx in range(1, max_row + 1):
-        values = [ws_model.cell(row=r_idx, column=c_idx).value for c_idx in range(2, 7)]  # Get values from B to F
-        for c_idx, value in enumerate(reversed(values), start=2):  # Reverse and set back
-            ws_model.cell(row=r_idx, column=c_idx, value=value)
-
-    # Add your specified values and formulas in row 1 and row 2
+    # Add header row content
     ws_model['C1'] = "fgr"
     ws_model['D1'] = "wacc"
     ws_model['E1'] = "tgr"
@@ -168,33 +115,58 @@ def save_to_excel(ticker, data_frames, income_start_row=5, cashflow_start_row=No
     ws_model['G5'] = "1"
     ws_model['H5'] = "=G5+1"
     ws_model['G6'] = "=F6+1"
-
-    
+    ws_model['D2'] = "15%"
+    ws_model['E2'] = "2%"
+    ws_model['I2'] = "=F2+H2"
+    ws_model['J2'] = "=main!C9"
+    ws_model['K2'] = "=I2+J2"
+    ws_model['L2'] = "=main!C3"
+    ws_model['M2'] = "=K2/L2"
+    ws_model['N2'] = "=main!C2"
+    ws_model['O2'] = "=M2/N2-1"
+    ws_model['A12'] = "fcf yoy"
+    ws_model['C12'] = "=(C10-B10)/ABS(B10)"
+    ws_model['A14'] = "fcf avg gr"
+    ws_model['A15'] = "fcf 4y avg gr"
+    ws_model['A16'] = "last fcf gr"
+    ws_model['A17'] = "conservative fcf gr"
+    ws_model['A18'] = "very conservative fcf gr"
+    ws_model['A21'] = "quarterly cash flow"
+    ws_model['A22'] = "cffo"
+    ws_model['A23'] = "capex"
+    ws_model['A24'] = "fcf"
+    ws_model['B21'] = "q1"
+    ws_model['C21'] = "q2"
+    ws_model['D21'] = "q3"
+    ws_model['E21'] = "q4"
+    ws_model['A28'] = "next FY projection"
+    ws_model['B28'] = "sum of q fcf"
+    ws_model['C28'] = "avg q fcf"
+    ws_model['D28'] = "est FY fcf"
+    ws_model['B29'] = "=SUM(24:24)"
+    ws_model['C29'] = "=B29/N"
+    ws_model['D29'] = "=C29*4"
 
     # Add formulas in G2 and H2
     ws_model['G2'] = "=(last fcf proj)*(1+tgr)/(wacc-tgr)"
     ws_model['H2'] = "=tv/(1+wacc)^n"
 
-    # Apply custom number formatting for large numbers
+    # Apply custom number formatting for numbers
     apply_custom_format(ws_model)
 
     # Save the workbook
     wb.save(file_name)
-    print(f"Financial statements for {ticker} saved to {file_name}")
+    print(f"Cash flow statements for {ticker} saved to {file_name}")
 
 # Main function to run the script
 def main():
-    # Ask the user to input a ticker symbol
     ticker = input("Enter the ticker symbol: ").upper()
+    cash_flow_df = fetch_cash_flow_statement(ticker)
     
-    # Fetch financial statements for the given ticker
-    data_frames = fetch_financial_statements(ticker)
-    
-    if data_frames:
-        # Save the data to an Excel file
-        save_to_excel(ticker, data_frames)
+    if cash_flow_df is not None:
+        save_to_excel(ticker, cash_flow_df)
     else:
-        print("No financial data found.")
+        print("No cash flow data found.")
 
 if __name__ == "__main__":
     main()
