@@ -222,19 +222,16 @@ def get_stock_info(ticker):
 def print_commands():
     """Prints a list of available commands."""
     commands = {
-        "ticker cf": "opens link for all filings (e.g., 'AAPL CF').",
-        "ticker 10-k #": "opens links for 10k filings (e.g., 'AAPL 10-K 5').",
-        "ticker 10-q #": "opens links for 10q filings (e.g., 'AAPL 10-Q 5').",
-        "ticker sta": "Open Stock Analysis page for the specified ticker.",
-        "ticker g": "Open StockCharts for the specified ticker.",
-        "ticker q": "Open Yahoo Finance for the specified ticker.",
-        "ticker n": "Open Stock Analysis page for the specified ticker.",
-        "ticker fa": "Open Financials page for the specified ticker.",
-        "ticker sa": "open seeking alpha link for stock",
-        "ticker fv": "open finviz link for stock",
-        "ticker hds": "open whalewisdom link for stock",
-        "ticker ins": "open openinsider link for stock",
-        "ticker g 1d/5d/1mo/3m/6m/ytd/1y/5y": "Plot a candlestick chart for the specified period",
+        "ticker + cf": "opens link for all filings (e.g., 'AAPL CF').",
+        "ticker + 10-k #": "opens links for 10k filings (e.g., 'AAPL 10-K 5').",
+        "ticker + 10-q #": "opens links for 10q filings (e.g., 'AAPL 10-Q 5').",
+        "ticker + sta": "Open Stock Analysis page for the specified ticker.",
+        "ticker + q": "get quote for ticker",
+        "ticker + fa": "Open Financials page for the specified ticker.",
+        "ticker + sa": "open seeking alpha link for stock",
+        "ticker + hds": "open whalewisdom link for stock",
+        "ticker + ins": "open openinsider link for stock",
+        "ticker + g": "5y chart ticker",
         "?": "Display this help message."
     }
     print("Available commands:")
